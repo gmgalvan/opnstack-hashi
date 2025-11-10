@@ -1,0 +1,83 @@
+name: Build & Push Nginx (Packer → ECR)
+
+on:
+  push:
+    branches: ["dev"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # para OIDC si asumes un rol
+  contents: read
+
+env:
+  PACKER_FILE: docker-nginx-ecr.pkr.hcl
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "023890853822"
+  ECR_REPOSITORY: nginx-app
+  PACKER_LOG: "1"
+
+jobs:
+  packer-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Packer
+        uses: hashicorp/setup-packer@v3
+        with:
+          version: latest
+
+      # Opción A (recomendada): usar OIDC para asumir un rol en tu cuenta AWS
+      - name: Configure AWS credentials (OIDC)
+        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+
+      # Opción B: usar claves de acceso (si no usas OIDC)
+      - name: Configure AWS credentials (keys)
+        if: ${{ !secrets.AWS_ROLE_TO_ASSUME && secrets.AWS_ACCESS_KEY_ID && secrets.AWS_SECRET_ACCESS_KEY }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # Asegura que exista la repo de ECR (requiere permisos ecr:CreateRepository)
+      - name: Ensure ECR repository exists
+        run: |
+          aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" >/dev/null 2>&1 || \
+          aws ecr create-repository --repository-name "$ECR_REPOSITORY" \
+            --image-scanning-configuration scanOnPush=true
+
+      # (Opcional pero útil) Asegurar AWS CLI por si el post-processor usa ecr_login
+      - name: Ensure AWS CLI
+        run: |
+          if ! command -v aws >/dev/null; then
+            curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip -q awscliv2.zip
+            sudo ./aws/install
+          fi
+          aws --version
+
+      - name: Packer init (plugins)
+        run: packer init "${{ env.PACKER_FILE }}"
+
+      - name: Packer validate
+        run: |
+          packer validate \
+            -var "aws_region=${{ env.AWS_REGION }}" \
+            -var "aws_account_id=${{ env.AWS_ACCOUNT_ID }}" \
+            -var "ecr_repository=${{ env.ECR_REPOSITORY }}" \
+            "${{ env.PACKER_FILE }}"
+
+      - name: Packer build
+        run: |
+          packer build -force \
+            -var "aws_region=${{ env.AWS_REGION }}" \
+            -var "aws_account_id=${{ env.AWS_ACCOUNT_ID }}" \
+            -var "ecr_repository=${{ env.ECR_REPOSITORY }}" \
+            "${{ env.PACKER_FILE }}"

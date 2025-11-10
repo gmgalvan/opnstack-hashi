@@ -1,0 +1,74 @@
+# 1. Inicializar (descargar plugins)
+packer init .
+
+# 2. Formatear código (estilo)
+packer fmt .
+
+# 3. Validar todo
+packer validate .
+
+# 4. Build con variables de desarrollo
+packer build -var-file=environments/dev.pkrvars.hcl .
+
+# 5. Build con variables de producción
+packer build -var-file=environments/prod.pkrvars.hcl .
+
+# 6. Build con override de variables
+packer build \
+  -var-file=environments/prod.pkrvars.hcl \
+  -var "image_tags=[\"v2.0.0\",\"latest\"]" \
+  .
+```
+
+## 📚 Referencias y Buenas Prácticas
+
+### Documentación Oficial de HashiCorp
+
+1. **Guía de Buenas Prácticas de HCL**
+   - https://developer.hashicorp.com/packer/guides/hcl
+
+2. **Estructura de Archivos**
+   - https://developer.hashicorp.com/packer/guides/hcl/component-object-spec
+
+3. **Variables y Locals**
+   - https://developer.hashicorp.com/packer/guides/hcl/variables
+
+4. **Templates**
+   - https://developer.hashicorp.com/packer/docs/templates/hcl_templates
+
+5. **Docker Builder**
+   - https://developer.hashicorp.com/packer/plugins/builders/docker
+
+### Mejores Prácticas Clave
+
+✅ **Separar por responsabilidad:** Variables, sources, builds en archivos separados
+
+✅ **Usar `locals` para valores calculados:** Timestamps, URLs compuestas
+
+✅ **Scripts externos:** No inline largo, usar archivos `.sh`
+
+✅ **Validaciones:** Agregar `validation` blocks a variables críticas
+
+✅ **Environments:** Archivos `.pkrvars.hcl` por ambiente (dev/staging/prod)
+
+✅ **Versionado:** Especificar versiones de plugins y Packer
+
+✅ **Documentación:** README.md claro con ejemplos
+
+✅ **GitIgnore:** No commitear secrets ni cache
+
+✅ **Naming conventions:** 
+- Archivos: `*.pkr.hcl`
+- Variables: `snake_case`
+- Sources: `descriptivos`
+
+## 🎯 Comparación: Antes vs Después
+
+### ❌ Antes (Monolítico)
+```
+1 archivo → 80 líneas → Difícil mantener
+```
+
+### ✅ Después (Modular)
+```
+9 archivos → ~15 líneas c/u → Fácil mantener

@@ -1,0 +1,20 @@
+# .gitignore
+
+# Packer
+*.pkr.hcl.backup
+packer_cache/
+crash.log
+*.box
+
+# Secrets
+*.pkrvars.hcl.secret
+secrets/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

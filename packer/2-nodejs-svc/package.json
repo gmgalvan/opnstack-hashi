@@ -1,0 +1,9 @@
+{
+  "name": "nodejs-app",
+  "version": "1.0.0",
+  "description": "Node.js app con Packer",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
