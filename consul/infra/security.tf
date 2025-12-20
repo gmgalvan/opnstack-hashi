@@ -14,6 +14,7 @@ resource "aws_security_group" "consul_sg" {
     description = "SSH access"
   }
 
+### ---- Consul ports security starts here ---- ###
   # Consul Server RPC
   ingress {
     from_port   = 8300
@@ -82,6 +83,8 @@ resource "aws_security_group" "consul_sg" {
     self        = true
     description = "Consul DNS UDP"
   }
+
+### ---- Consul ports security ends here ---- ###
 
   # Application ports (for testing)
   ingress {

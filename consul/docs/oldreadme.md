@@ -15,11 +15,6 @@ consul operator raft list-peers
 
 ## 2. Setup Services on Client-1 (Docker + Nginx)
 
-SSH into Client-1:
-```bash
-ssh -i ~/.ssh/consul-key.pem ubuntu@3.236.91.47
-```
-
 Install Docker:
 ```bash
 sudo apt update
@@ -69,10 +64,6 @@ consul catalog services
 ## 3. Setup Service on Client-2 (Python HTTP Server)
 
 SSH into Client-2:
-```bash
-ssh -i ~/.ssh/consul-key.pem ubuntu@13.218.92.220
-```
-
 Start Python HTTP server:
 ```bash
 # Create a simple HTML page
@@ -145,9 +136,6 @@ curl http://$SERVICE_IP:9090/index.json
 ## 5. Deploy Real PostgreSQL Database on Client-2
 
 SSH into Client-2:
-```bash
-ssh -i ~/.ssh/consul-key.pem ubuntu@13.218.92.220
-```
 
 ### Install Docker:
 ```bash
@@ -240,9 +228,6 @@ consul kv get -recurse myapp/database/
 ## 7. Connect to PostgreSQL from Client-1 Using Service Discovery
 
 SSH into Client-1:
-```bash
-ssh -i ~/.ssh/consul-key.pem ubuntu@3.236.91.47
-```
 
 ### Install PostgreSQL client:
 ```bash
