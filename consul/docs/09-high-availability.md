@@ -156,7 +156,7 @@ Ejemplo de salida:
 ### 1. Verificar a cuál base de datos estás conectado
 
 ```bash
-./db-connect.sh -c "SELECT inet_server_addr() as ip, inet_server_port() as port;"
+./connect-db.sh -c "SELECT inet_server_addr() as ip, inet_server_port() as port;"
 ```
 
 Verás algo como:
@@ -211,7 +211,7 @@ Deberías ver una instancia "passing" y otra "critical":
 ### 4. Intentar conectar de nuevo - ¡Failover automático!
 
 ```bash
-./db-connect.sh -c "SELECT inet_server_addr() as ip, inet_server_port() as port;"
+./connect-db.sh -c "SELECT inet_server_addr() as ip, inet_server_port() as port;"
 ```
 
 🚀 **¡Ahora debería conectar automáticamente a la réplica!**
