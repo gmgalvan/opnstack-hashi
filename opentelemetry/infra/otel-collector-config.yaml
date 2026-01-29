@@ -1,0 +1,203 @@
+# OpenTelemetry Collector Configuration
+# Este archivo configura el Collector para recibir, procesar y exportar telemetría
+
+# ============================================
+# RECEIVERS - Puntos de entrada de telemetría
+# ============================================
+receivers:
+  # OTLP: Protocolo nativo de OpenTelemetry
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317  # Puerto gRPC estándar
+      http:
+        endpoint: 0.0.0.0:4318  # Puerto HTTP estándar
+        cors:
+          allowed_origins:
+            - "*"  # En producción, restringir a dominios específicos
+  
+  # Prometheus: Scrapear métricas de aplicaciones que exponen formato Prometheus
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          scrape_interval: 15s
+          static_configs:
+            - targets: ['localhost:8888']  # Métricas propias del collector
+
+  # Host Metrics: Métricas del sistema (CPU, memoria, disco)
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+      memory:
+      disk:
+      network:
+
+# ============================================
+# PROCESSORS - Transformación y enriquecimiento
+# ============================================
+processors:
+  # Batch: Agrupa datos antes de exportar (mejor rendimiento)
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+  
+  # Memory Limiter: Previene OOM del collector
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512          # Límite de memoria
+    spike_limit_mib: 128    # Margen para picos
+  
+  # Resource: Añade atributos a todos los recursos
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: development
+        action: upsert
+      - key: collector.version
+        value: "0.95.0"
+        action: insert
+  
+  # Attributes: Modificar atributos de spans/metrics
+  attributes:
+    actions:
+      - key: http.user_agent
+        action: hash  # Hashear para privacidad
+      - key: db.statement
+        action: delete  # Eliminar queries SQL (puede contener datos sensibles)
+  
+  # Filter: Eliminar telemetría no deseada
+  filter:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.route"] == "/health"'  # Ignorar health checks
+        - 'attributes["http.route"] == "/metrics"'
+    metrics:
+      metric:
+        - 'name == "go_gc_duration_seconds"'  # Eliminar métricas de GC verbose
+
+  # Tail Sampling: Sampling basado en el trace completo
+  # (Útil para capturar errores aunque el sampling sea bajo)
+  # NOTA: Requiere más memoria y debe estar en un collector gateway
+  # tail_sampling:
+  #   decision_wait: 10s
+  #   policies:
+  #     - name: errors
+  #       type: status_code
+  #       status_code: {status_codes: [ERROR]}
+  #     - name: slow-traces
+  #       type: latency
+  #       latency: {threshold_ms: 1000}
+  #     - name: percentage
+  #       type: probabilistic
+  #       probabilistic: {sampling_percentage: 10}
+
+# ============================================
+# EXPORTERS - Destinos de telemetría
+# ============================================
+exporters:
+  # Debug: Imprimir a stdout (solo para desarrollo)
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+  
+  # OTLP: Enviar a otro collector o backend compatible
+  otlp:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true  # En producción usar TLS
+  
+  # OTLP/HTTP: Enviar vía HTTP
+  otlphttp:
+    endpoint: http://jaeger:4318
+    tls:
+      insecure: true
+  
+  # Prometheus: Exponer métricas en formato Prometheus
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: otel
+    const_labels:
+      environment: development
+    resource_to_telemetry_conversion:
+      enabled: true
+  
+  # Jaeger: Exportar traces directamente a Jaeger
+  # jaeger:
+  #   endpoint: jaeger:14250
+  #   tls:
+  #     insecure: true
+
+# ============================================
+# CONNECTORS - Conectar pipelines
+# ============================================
+connectors:
+  # Span Metrics: Generar métricas RED desde traces
+  spanmetrics:
+    histogram:
+      explicit:
+        buckets: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
+    dimensions:
+      - name: http.method
+      - name: http.status_code
+      - name: service.name
+    exemplars:
+      enabled: true
+
+# ============================================
+# EXTENSIONS - Funcionalidad adicional
+# ============================================
+extensions:
+  # Health Check: Endpoint de salud
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: "/health"
+    tls: null
+  
+  # pprof: Profiling (solo desarrollo)
+  pprof:
+    endpoint: 0.0.0.0:1777
+  
+  # zpages: Debugging UI
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+# ============================================
+# SERVICE - Configuración de pipelines
+# ============================================
+service:
+  extensions: [health_check, pprof, zpages]
+  
+  # Telemetría del propio Collector
+  telemetry:
+    logs:
+      level: info
+      initial_fields:
+        service: otel-collector
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+  
+  # PIPELINES: Define el flujo de datos
+  pipelines:
+    # Pipeline de Traces
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlp, debug, spanmetrics]
+    
+    # Pipeline de Métricas
+    metrics:
+      receivers: [otlp, prometheus, hostmetrics, spanmetrics]
+      processors: [memory_limiter, batch, resource]
+      exporters: [prometheus, debug]
+    
+    # Pipeline de Logs
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [debug]
